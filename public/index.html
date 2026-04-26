@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Planner</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Arial, "Noto Sans Hebrew", sans-serif;
+        background: #07111f;
+        color: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top, #123356 0, #07111f 45%, #020617 100%); }
+      main { width: min(960px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0; }
+      .hero, .card { border: 1px solid rgba(255,255,255,.12); border-radius: 28px; background: rgba(255,255,255,.07); box-shadow: 0 24px 80px rgba(0,0,0,.3); }
+      .hero { padding: 28px; margin-bottom: 18px; }
+      h1 { margin: 0; font-size: clamp(32px, 7vw, 56px); }
+      h2 { margin: 0 0 12px; }
+      p { color: #cbd5e1; line-height: 1.7; }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 18px 0; }
+      .status { padding: 16px; border-radius: 20px; background: rgba(15,23,42,.72); border: 1px solid rgba(255,255,255,.08); }
+      .ok { color: #86efac; }
+      .warn { color: #fde68a; }
+      .panel { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+      .card { padding: 24px; }
+      .record-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 270px; text-align: center; }
+      .record { width: 148px; height: 148px; border: 0; border-radius: 999px; background: #0891b2; color: white; cursor: pointer; font-size: 52px; box-shadow: 0 18px 60px rgba(8,145,178,.35); }
+      .record.recording { background: #dc2626; box-shadow: 0 18px 60px rgba(220,38,38,.35); }
+      .record:disabled, button:disabled { cursor: not-allowed; opacity: .5; }
+      textarea, input { width: 100%; border: 1px solid rgba(255,255,255,.14); background: rgba(2,6,23,.75); color: white; border-radius: 16px; padding: 14px; font-size: 16px; }
+      button.small { border: 0; border-radius: 14px; padding: 13px 18px; background: #67e8f9; color: #082f49; font-weight: 700; cursor: pointer; }
+      .row { display: flex; gap: 10px; align-items: center; }
+      .row input { flex: 1; }
+      .result { background: rgba(2,6,23,.55); border-radius: 18px; padding: 16px; margin-top: 12px; }
+      .success { color: #bbf7d0; background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.28); padding: 12px; border-radius: 16px; }
+      .error { color: #fecaca; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.28); padding: 12px; border-radius: 16px; }
+      .muted { color: #94a3b8; font-size: 14px; }
+      a { color: #67e8f9; }
+      @media (max-width: 780px) {
+        .grid, .panel { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="muted">Voice Planner</div>
+        <h1>שמירת פגישות ומשימות בקול</h1>
+        <p>
+          התחל הקלטה במילה <b>משימה</b> כדי לשמור ב-Google Tasks,
+          או במילה <b>זימון</b> כדי לשמור ב-Google Calendar.
+        </p>
+      </section>
+
+      <section class="grid">
+        <div class="status"><div class="muted">Google</div><b id="googleStatus">בודק...</b></div>
+        <div class="status"><div class="muted">OpenAI</div><b id="openaiStatus">בודק...</b></div>
+        <div class="status"><div class="muted">Timezone</div><b id="timezoneStatus"></b></div>
+      </section>
+
+      <section id="accessKeyBox" class="card" style="display:none; margin-bottom: 18px;">
+        <h2>מפתח גישה</h2>
+        <p>הוגדר מפתח גישה בשרת. הזן אותו כאן כדי להפעיל פעולות.</p>
+        <div class="row">
+          <input id="accessKey" placeholder="VOICE_PLANNER_ACCESS_KEY" />
+          <button class="small" id="saveAccessKey">שמור</button>
+        </div>
+      </section>
+
+      <section id="googleBox" class="card" style="display:none; margin-bottom: 18px;">
+        <h2>חיבור Google חד-פעמי</h2>
+        <p>צריך לאשר גישה ליומן ולמשימות. הטוקן נשמר מקומית בשרת Render.</p>
+        <button class="small" id="connectGoogle">התחבר עם Google</button>
+      </section>
+
+      <section class="panel">
+        <div class="card">
+          <div class="record-wrap">
+            <button id="recordButton" class="record" disabled>🎙</button>
+            <h2 id="recordTitle">לחץ להקלטה</h2>
+            <p id="recordHelp">טוען סטטוס...</p>
+          </div>
+
+          <form id="manualForm">
+            <label class="muted" for="manualText">בדיקה ידנית בלי הקלטה</label>
+            <textarea id="manualText" rows="3" placeholder='לדוגמה: "זימון פגישת עבודה ביום שלישי ב-10 בבוקר במשרד"'></textarea>
+            <p><button class="small" id="manualSubmit" disabled>שמור מהטקסט</button></p>
+          </form>
+        </div>
+
+        <aside class="card">
+          <h2>תוצאה אחרונה</h2>
+          <div id="message"></div>
+          <div id="transcript"></div>
+          <div id="result"></div>
+        </aside>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        status: null,
+        recording: false,
+        processing: false,
+        elapsed: 0,
+        timer: null,
+        recorder: null,
+        stream: null,
+        chunks: []
+      };
+
+      const $ = id => document.getElementById(id);
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem';
+      $('timezoneStatus').textContent = timezone;
+      $('accessKey').value = localStorage.getItem('voicePlannerAccessKey') || '';
+
+      function apiHeaders() {
+        const key = localStorage.getItem('voicePlannerAccessKey');
+        return {
+          'Content-Type': 'application/json',
+          ...(key ? { 'x-voice-planner-key': key } : {})
+        };
+      }
+
+      async function api(path, options = {}) {
+        const response = await fetch(`/api${path}`, {
+          ...options,
+          headers: { ...apiHeaders(), ...(options.headers || {}) }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Request failed');
+        return data;
+      }
+
+      async function loadStatus() {
+        try {
+          state.status = await api('/status');
+          renderStatus();
+        } catch (error) {
+          showError(error.message);
+        }
+      }
+
+      function renderStatus() {
+        const s = state.status || {};
+        $('googleStatus').textContent = s.googleConnected ? 'מחובר' : s.googleConfigured ? 'לא מחובר' : 'חסרה הגדרת OAuth';
+        $('googleStatus').className = s.googleConnected ? 'ok' : 'warn';
+        $('openaiStatus').textContent = s.openaiConfigured ? 'מוגדר' : 'חסר OPENAI_API_KEY';
+        $('openaiStatus').className = s.openaiConfigured ? 'ok' : 'warn';
+        $('accessKeyBox').style.display = s.accessKeyRequired ? 'block' : 'none';
+        $('googleBox').style.display = s.googleConnected ? 'none' : 'block';
+        const ready = Boolean(s.googleConnected && s.openaiConfigured);
+        $('recordButton').disabled = !ready || state.processing;
+        $('manualSubmit').disabled = !ready || state.processing;
+        $('recordHelp').textContent = ready ? 'אמור: משימה... או זימון...' : 'השלם חיבור Google והגדרות OpenAI לפני שימוש';
+      }
+
+      function showError(text) {
+        $('message').innerHTML = `<div class="error">${escapeHtml(text)}</div>`;
+      }
+
+      function showSuccess(text) {
+        $('message').innerHTML = `<div class="success">${escapeHtml(text)}</div>`;
+      }
+
+      async function connectGoogle() {
+        try {
+          const data = await api('/google/auth-url');
+          window.location.href = data.url;
+        } catch (error) {
+          showError(error.message);
+        }
+      }
+
+      async function startRecording() {
+        try {
+          if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+            throw new Error('הדפדפן לא תומך בהקלטת אודיו.');
+          }
+          clearResult();
+          state.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+          state.recorder = new MediaRecorder(state.stream, { mimeType });
+          state.chunks = [];
+          state.recorder.ondataavailable = event => {
+            if (event.data?.size) state.chunks.push(event.data);
+          };
+          state.recorder.onstop = async () => {
+            const blob = new Blob(state.chunks, { type: state.recorder.mimeType || 'audio/webm' });
+            state.stream.getTracks().forEach(track => track.stop());
+            await processAudio(blob);
+          };
+          state.recorder.start();
+          state.recording = true;
+          state.elapsed = 0;
+          state.timer = setInterval(() => {
+            state.elapsed += 1;
+            $('recordHelp').textContent = `${state.elapsed} שניות`;
+          }, 1000);
+          $('recordButton').classList.add('recording');
+          $('recordButton').textContent = '■';
+          $('recordTitle').textContent = 'מקליט עכשיו...';
+        } catch (error) {
+          showError(error.message);
+        }
+      }
+
+      function stopRecording() {
+        clearInterval(state.timer);
+        state.recording = false;
+        $('recordButton').classList.remove('recording');
+        $('recordButton').textContent = '🎙';
+        $('recordTitle').textContent = 'מעבד...';
+        state.recorder?.stop();
+      }
+
+      async function processAudio(blob) {
+        try {
+          state.processing = true;
+          renderStatus();
+          const audioBase64 = await blobToBase64(blob);
+          const data = await api('/process', {
+            method: 'POST',
+            body: JSON.stringify({ audioBase64, mimeType: blob.type || 'audio/webm', timezone })
+          });
+          handleSuccess(data);
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          state.processing = false;
+          $('recordTitle').textContent = 'לחץ להקלטה';
+          renderStatus();
+        }
+      }
+
+      async function submitManual(event) {
+        event.preventDefault();
+        const text = $('manualText').value.trim();
+        if (!text) return;
+        try {
+          clearResult();
+          state.processing = true;
+          renderStatus();
+          const data = await api('/process', {
+            method: 'POST',
+            body: JSON.stringify({ text, timezone })
+          });
+          handleSuccess(data);
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          state.processing = false;
+          renderStatus();
+        }
+      }
+
+      function handleSuccess(data) {
+        const type = data.parsed?.type === 'task' ? 'המשימה נשמרה ב-Google Tasks.' : 'הזימון נשמר ב-Google Calendar.';
+        showSuccess(type);
+        $('transcript').innerHTML = `<div class="result"><div class="muted">תמלול</div>${escapeHtml(data.transcript || '')}</div>`;
+        const parsed = data.parsed || {};
+        $('result').innerHTML = `
+          <div class="result">
+            <div class="muted">${parsed.type === 'task' ? 'משימה' : 'זימון'}</div>
+            <p><b>כותרת:</b> ${escapeHtml(parsed.title || '')}</p>
+            <p><b>תאריך:</b> ${escapeHtml(parsed.date || parsed.dueDate || '')}</p>
+            <p><b>שעה:</b> ${escapeHtml(parsed.startTime || parsed.dueTime || '')}</p>
+            <p><b>מיקום:</b> ${escapeHtml(parsed.location || '')}</p>
+            ${data.googleResult?.htmlLink ? `<p><a href="${data.googleResult.htmlLink}" target="_blank" rel="noreferrer">פתיחה ב-Google Calendar</a></p>` : ''}
+          </div>
+        `;
+      }
+
+      function clearResult() {
+        $('message').innerHTML = '';
+        $('transcript').innerHTML = '';
+        $('result').innerHTML = '';
+      }
+
+      function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, char => ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[char]));
+      }
+
+      $('connectGoogle').addEventListener('click', connectGoogle);
+      $('recordButton').addEventListener('click', () => state.recording ? stopRecording() : startRecording());
+      $('manualForm').addEventListener('submit', submitManual);
+      $('saveAccessKey').addEventListener('click', () => {
+        const key = $('accessKey').value.trim();
+        if (key) localStorage.setItem('voicePlannerAccessKey', key);
+        else localStorage.removeItem('voicePlannerAccessKey');
+        loadStatus();
+      });
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('google') === 'connected') {
+        showSuccess('החיבור ל-Google נשמר בהצלחה.');
+        window.history.replaceState({}, '', '/');
+      }
+      if (params.get('google') === 'error') {
+        showError(params.get('message') || 'החיבור ל-Google נכשל.');
+        window.history.replaceState({}, '', '/');
+      }
+      loadStatus();
+    </script>
+  </body>
+</html>

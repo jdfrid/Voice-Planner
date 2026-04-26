@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: voice-planner
+    runtime: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20.11.1"
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # Optional. If omitted, the app derives https://<host>/api/google/callback
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      # Optional lightweight gate for the public single-user page.
+      - key: VOICE_PLANNER_ACCESS_KEY
+        sync: false
+      # Use a Render persistent disk path if you add a disk, for example /var/data.
+      - key: DATA_DIR
+        sync: false
