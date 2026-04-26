@@ -13,9 +13,23 @@ const TOKEN_FILE = path.join(dataRoot, 'google-token.json');
 const STATE_FILE = path.join(dataRoot, 'oauth-state.txt');
 
 function getDataRoot() {
-  const dir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  return dir;
+  const candidates = [
+    process.env.DATA_DIR,
+    path.join(process.cwd(), 'data'),
+    '/tmp/voice-planner'
+  ].filter(Boolean);
+
+  for (const dir of candidates) {
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      return dir;
+    } catch (error) {
+      console.warn(`DATA_DIR is not writable (${dir}): ${error.message}`);
+    }
+  }
+
+  throw new Error('No writable data directory is available.');
 }
 
 function getGoogleClientConfig() {
