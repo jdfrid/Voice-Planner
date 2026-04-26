@@ -3,7 +3,7 @@ services:
     name: voice-planner
     runtime: node
     plan: free
-    buildCommand: "npm install"
+    buildCommand: "echo no build required"
     startCommand: "npm start"
     healthCheckPath: /api/health
     envVars:
